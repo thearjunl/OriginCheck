@@ -39,6 +39,7 @@ export default function HomePage() {
 
   // Typewriter effect for humanized text
   const [displayedText, setDisplayedText] = useState('');
+  const [isCopied, setIsCopied] = useState(false);
 
   useEffect(() => {
     if (outputText && !isHumanizing) {
@@ -128,6 +129,13 @@ export default function HomePage() {
       el.classList.add('ring-4', 'ring-indigo-500', 'scale-[1.02]');
       setTimeout(() => el.classList.remove('ring-4', 'ring-indigo-500', 'scale-[1.02]'), 1500);
     }
+  };
+
+  const handleCopy = () => {
+    if (!displayedText) return;
+    navigator.clipboard.writeText(displayedText);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
   };
 
   return (
@@ -236,7 +244,17 @@ export default function HomePage() {
               <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col relative overflow-hidden">
                 <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-100 flex justify-between items-center text-sm font-medium text-slate-500">
                   <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> Humanized Output</span>
-                  <span className="text-slate-400">{displayedText ? finalWordCount : 0} words</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-slate-400">{displayedText ? finalWordCount : 0} words</span>
+                    <button 
+                      onClick={handleCopy}
+                      disabled={!displayedText}
+                      className="p-1.5 bg-white text-slate-500 hover:text-emerald-600 rounded-md shadow-sm border border-slate-200 hover:border-emerald-200 transition-all flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Copy to clipboard"
+                    >
+                      {isCopied ? <CheckCircle2 size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="flex-1 relative p-5 bg-emerald-50/10">
@@ -268,13 +286,6 @@ export default function HomePage() {
                       </div>
                     )}
                   </AnimatePresence>
-                </div>
-                
-                {/* Actions */}
-                <div className="absolute bottom-4 right-5 flex gap-2">
-                   <button className="p-2.5 bg-white text-slate-500 hover:text-emerald-600 rounded-lg shadow-sm border border-slate-200 hover:border-emerald-200 transition-all flex items-center justify-center">
-                     <Copy size={16} />
-                   </button>
                 </div>
               </div>
             </div>
