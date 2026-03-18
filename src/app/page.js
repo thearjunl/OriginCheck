@@ -145,12 +145,9 @@ export default function HomePage() {
       <nav className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-sm">
         <div className="mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-600 shadow-md shadow-indigo-200">
-              <ShieldAlert size={18} className="text-white" />
+            <div className="flex items-center justify-center">
+              <img src="/logo.png" alt="OriginCheck Logo" className="h-10 w-auto object-contain" />
             </div>
-            <span className="text-xl font-bold tracking-tight text-slate-800">
-              Origin<span className="text-indigo-600">Check</span>
-            </span>
           </div>
           
           <div className="hidden md:flex flex-1 justify-center items-center gap-8 text-sm font-semibold text-slate-500">
