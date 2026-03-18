@@ -31,6 +31,8 @@ export default function HomePage() {
   const [scanResults, setScanResults] = useState(null);
   const [documentFile, setDocumentFile] = useState(null);
   const [highlightedText, setHighlightedText] = useState(null); // Used to show highlights in viewer
+  const [isDragging, setIsDragging] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
 
   // UI
   const textInputRef = useRef(null);
@@ -136,6 +138,59 @@ export default function HomePage() {
     navigator.clipboard.writeText(displayedText);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+    
+    setIsParsing(true);
+    setDocumentFile(file);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const res = await fetch('/api/parse', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setInputText(data.text);
+      } else {
+        alert(data.error || 'Failed to parse file');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error parsing file');
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const onDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileUpload(e.target.files[0]);
+    }
   };
 
   return (
@@ -313,19 +368,32 @@ export default function HomePage() {
                       dangerouslySetInnerHTML={{ __html: highlightedText }}
                     />
                   </div>
+                ) : isParsing ? (
+                  <div className="absolute inset-0 bg-slate-50/50 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                    <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
+                    <p className="text-slate-600 font-medium text-sm animate-pulse">Extracting Document Text...</p>
+                  </div>
                 ) : (
-                  <div className="absolute inset-0 p-6 flex flex-col items-center justify-center">
+                  <div 
+                    className={`absolute inset-0 p-6 flex flex-col items-center justify-center transition-all ${isDragging ? 'bg-indigo-50/50' : ''}`}
+                    onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
+                    onDrop={onDrop}
+                  >
                     <textarea
                       value={inputText}
                       onChange={(e) => setInputText(e.target.value)}
-                      placeholder="Paste text here to scan, or upload a .pdf / .docx..."
-                      className="w-full h-full bg-transparent resize-none p-2 focus:outline-none text-slate-700 leading-relaxed placeholder:text-slate-400 border border-dashed border-slate-300 rounded-xl hover:border-indigo-300 transition-colors focus:border-indigo-400"
+                      placeholder=""
+                      className={`w-full h-full bg-transparent resize-none p-2 focus:outline-none text-slate-700 leading-relaxed placeholder:text-slate-400 border border-dashed rounded-xl transition-colors ${isDragging ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-300 hover:border-indigo-300 focus:border-indigo-400'}`}
                     />
                     {!inputText && (
                        <div className="absolute pointer-events-none flex flex-col items-center justify-center text-slate-400 gap-3">
-                         <UploadCloud size={32} className="text-slate-300" />
-                         <span className="text-sm font-medium">Drag & Drop or Paste Text</span>
-                         <button className="pointer-events-auto text-xs px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 font-semibold" onClick={() => setInputText(SAMPLE_TEXT)}>Use Sample text</button>
+                         <UploadCloud size={32} className={`transition-colors ${isDragging ? 'text-indigo-500' : 'text-slate-300'}`} />
+                         <span className="text-sm font-medium">{isDragging ? 'Drop file here!' : 'Drag & Drop or Paste Text'}</span>
+                         <label className="pointer-events-auto cursor-pointer text-xs px-4 py-1.5 bg-white border border-slate-200 shadow-sm hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50 rounded-full text-slate-600 font-semibold transition-all">
+                           Select File
+                           <input type="file" className="hidden" accept=".pdf,.docx,.txt" onChange={handleFileSelect} />
+                         </label>
                        </div>
                     )}
                   </div>
