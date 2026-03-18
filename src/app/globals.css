@@ -1,26 +1,243 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #F8FAFC;         /* Light grayish-blue for the app background */
+  --background-secondary: #FFFFFF; /* Pure white for panels */
+  --surface: #F1F5F9;            /* Slightly darker gray for input areas/inactive buttons */
+  --surface-hover: #E2E8F0;      /* Hover state for surface areas */
+  --border: #E2E8F0;             /* Soft borders */
+  --border-light: #CBD5E1;       /* Slightly stronger borders on hover */
+  --foreground: #0F172A;         /* Near black text */
+  --foreground-secondary: #334155; /* Dark gray for secondary text */
+  --foreground-muted: #64748B;   /* Slate gray for muted text */
+  
+  /* Modern teal/cyan accent like Humanize AI screenshot */
+  --accent-primary: #14B8A6;     /* Teal 500 */
+  --accent-primary-hover: #0D9488; /* Teal 600 */
+  --accent-secondary: #0EA5E9;   /* Sky 500 */
+  
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #3B82F6;
+  
+  --web-color: #EF4444;
+  --pub-color: #8B5CF6;
+  --student-color: #3B82F6;
+  
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-plex-sans), monospace;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+/* Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-light);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground-muted);
+}
+
+/* Text Areas */
+textarea {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.6;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  border: none;
+  outline: none;
+  color: var(--foreground);
+}
+
+textarea::placeholder {
+  color: #94A3B8;
+  font-weight: 400;
+}
+
+/* Skeleton Shimmer for Light Mode */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--surface) 25%,
+    var(--surface-hover) 37%,
+    var(--surface) 63%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite ease-in-out;
+  border-radius: 6px;
+}
+
+/* Document Highlight Classes - made lighter for white bg */
+.highlight-web {
+  background: rgba(239, 68, 68, 0.15);
+  border-bottom: 2px solid rgba(239, 68, 68, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+  padding: 1px 0;
+}
+
+.highlight-web:hover,
+.highlight-web.active {
+  background: rgba(239, 68, 68, 0.25);
+  border-bottom-color: rgba(239, 68, 68, 0.8);
+}
+
+.highlight-publication {
+  background: rgba(139, 92, 246, 0.15);
+  border-bottom: 2px solid rgba(139, 92, 246, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+  padding: 1px 0;
+}
+
+.highlight-publication:hover,
+.highlight-publication.active {
+  background: rgba(139, 92, 246, 0.25);
+  border-bottom-color: rgba(139, 92, 246, 0.8);
+}
+
+.highlight-student {
+  background: rgba(59, 130, 246, 0.15);
+  border-bottom: 2px solid rgba(59, 130, 246, 0.4);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+  padding: 1px 0;
+}
+
+.highlight-student:hover,
+.highlight-student.active {
+  background: rgba(59, 130, 246, 0.25);
+  border-bottom-color: rgba(59, 130, 246, 0.8);
+}
+
+/* Source Number Badge */
+.source-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
+  vertical-align: super;
+  margin-left: 2px;
+  position: relative;
+  top: -2px;
+}
+
+/* Custom Primary Button */
+.btn-primary {
+  background: var(--accent-primary);
+  color: white;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background: var(--accent-primary-hover);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Action button (Try sample) */
+.btn-outline {
+  border: 1px solid var(--border-light);
+  background: var(--background-secondary);
+  color: var(--foreground-secondary);
+  transition: all 0.2s;
+}
+
+.btn-outline:hover {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+/* Toggle Switch */
+.toggle-switch {
+  width: 36px;
+  height: 20px;
+  background: var(--border-light);
+  border-radius: 10px;
+  position: relative;
+  cursor: pointer;
+  transition: background 0.3s ease;
+  border: none;
+  padding: 0;
+}
+
+.toggle-switch.active {
+  background: var(--accent-primary);
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.toggle-switch.active::after {
+  transform: translateX(16px);
+}
+
+/* Floating Action / Processing overlay */
+.processing-overlay {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+/* Dot grid background - subtle light version */
+.dot-grid {
+  background-image: radial-gradient(circle, #E2E8F0 1px, transparent 1px);
+  background-size: 24px 24px;
 }
