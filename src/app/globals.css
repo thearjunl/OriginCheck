@@ -241,3 +241,8 @@ textarea::placeholder {
   background-image: radial-gradient(circle, #E2E8F0 1px, transparent 1px);
   background-size: 24px 24px;
 }
+
+/* Hide Next.js dev indicator */
+nextjs-portal {
+  display: none !important;
+}
