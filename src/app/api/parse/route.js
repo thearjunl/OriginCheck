@@ -19,7 +19,7 @@ export async function POST(req) {
     let text = '';
 
     if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
-      const data = await pdf(buffer);
+      const data = await pdfParse(buffer);
       text = data.text;
     } else if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       const result = await mammoth.extractRawText({ buffer });
