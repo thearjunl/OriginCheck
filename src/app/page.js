@@ -225,16 +225,6 @@ export default function HomePage() {
                   placeholder="Paste AI-generated text here, or try a sample..."
                   className="flex-1 w-full bg-transparent resize-none p-5 focus:outline-none text-slate-700 leading-relaxed placeholder:text-slate-400 text-base"
                 />
-                {!inputText && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <button 
-                      onClick={() => setInputText(SAMPLE_TEXT)}
-                      className="pointer-events-auto px-5 py-2 rounded-lg border border-slate-200 bg-white text-emerald-600 text-sm font-medium hover:bg-slate-50 shadow-sm transition-all"
-                    >
-                      Load Sample Text
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* Output Panel */}
