@@ -145,8 +145,8 @@ export default function HomePage() {
       <nav className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-sm">
         <div className="mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center">
-              <img src="/logo.png" alt="OriginCheck Logo" className="h-10 w-auto object-contain" />
+            <div className="flex items-center justify-center bg-white rounded-xl shadow-sm border border-slate-100 p-1.5 overflow-hidden">
+              <img src="/logo.png" alt="OriginCheck Logo" className="h-10 w-10 object-contain" />
             </div>
           </div>
           
