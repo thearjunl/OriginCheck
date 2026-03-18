@@ -146,7 +146,7 @@ export default function HomePage() {
         <div className="mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center bg-white rounded-xl shadow-sm border border-slate-100 p-1.5 overflow-hidden">
-              <img src="/logo.png" alt="OriginCheck Logo" className="h-10 w-10 object-contain" />
+              <img src="/logo.png?v=2" alt="OriginCheck Logo" className="h-10 w-10 object-contain" />
             </div>
           </div>
           
