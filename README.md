@@ -1,6 +1,22 @@
 # OriginCheck
 A high-fidelity plagiarism detection platform with interactive similarity reporting and AI integrity analysis.
 
+## Core Features
+
+### 🔍 The Integrity Scanner
+A turnitin-style environment that provides a deep analysis of any document. 
+- Highlights text matches directly inline.
+- Identifies **Web Plagiarism** (Red) vs. **AI-detected Text** (Purple).
+- Features an interactive "Similarity Index" Donut Chart for Match Overview.
+
+### ✨ The AI Humanizer (Transformation Engine)
+A CopyLeaks-style engine that bypasses modern AI detectors.
+- Built on sophisticated **Perplexity and Burstiness Analysis**.
+- Advanced processing algorithms that structure text to contain varied sentence lengths (Burstiness) and complex, non-obvious vocabulary (Perplexity).
+- Immersive side-by-side editing interface with dynamic "Strength" sliders.
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
