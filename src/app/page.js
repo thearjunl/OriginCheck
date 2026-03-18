@@ -1,8 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { humanizeText } from '@/lib/humanizer';
+import { FileText, Copy, Download, ShieldAlert, FileSearch, Zap, CheckCircle2, AlertTriangle, ChevronRight, UploadCloud } from 'lucide-react';
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import { Doughnut } from 'react-chartjs-2';
+import { cn } from '@/lib/utils';
+
+ChartJS.register(ArcElement, Tooltip, Legend);
 
 const SAMPLE_TEXT = `Artificial intelligence (AI) has become a transformative force across virtually every industry and academic discipline. Machine learning algorithms, a subset of AI, enable computers to learn from data without being explicitly programmed. Deep learning, which uses neural networks with multiple layers, has achieved remarkable breakthroughs in image recognition, natural language processing, and autonomous driving.
 
@@ -11,265 +16,411 @@ The history of artificial intelligence dates back to the 1950s when Alan Turing 
 In recent years, the development of transformer architectures has revolutionized natural language processing. Models like GPT, BERT, and T5 have demonstrated unprecedented capabilities in understanding and generating human language. These models are trained on vast amounts of text data and can perform a wide range of tasks, from translation to summarization to question answering.`;
 
 export default function HomePage() {
+  const [activeTab, setActiveTab] = useState('humanizer'); // 'humanizer' | 'scanner'
   const [inputText, setInputText] = useState('');
+  
+  // Humanizer State
   const [outputText, setOutputText] = useState('');
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanProgress, setScanProgress] = useState(null);
-  const [originalWordCount, setOriginalWordCount] = useState(0);
+  const [humanizerStrength, setHumanizerStrength] = useState('Medium');
+  const [isHumanizing, setIsHumanizing] = useState(false);
+  const [humanizeProgress, setHumanizeProgress] = useState(null);
   const [finalWordCount, setFinalWordCount] = useState(0);
+
+  // Scanner State
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanResults, setScanResults] = useState(null);
+  const [documentFile, setDocumentFile] = useState(null);
+  const [highlightedText, setHighlightedText] = useState(null); // Used to show highlights in viewer
+
+  // UI
+  const textInputRef = useRef(null);
 
   const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
 
-  const handleScan = useCallback(async () => {
-    if (!inputText.trim()) return;
+  // Typewriter effect for humanized text
+  const [displayedText, setDisplayedText] = useState('');
 
-    setIsScanning(true);
+  useEffect(() => {
+    if (outputText && !isHumanizing) {
+      // Trigger typewriter effect
+      let i = 0;
+      setDisplayedText('');
+      const words = outputText.split(' ');
+      const interval = setInterval(() => {
+        if (i < words.length) {
+          setDisplayedText(prev => prev + (prev ? ' ' : '') + words[i]);
+          i++;
+        } else {
+          clearInterval(interval);
+        }
+      }, 30); // 30ms per word
+      return () => clearInterval(interval);
+    }
+  }, [outputText, isHumanizing]);
+
+  // Handle Humanize
+  const handleHumanize = async () => {
+    if (!inputText.trim()) return;
+    setIsHumanizing(true);
     setOutputText('');
-    setScanProgress({ progress: 0, message: 'Initializing humanizer...' });
+    setDisplayedText('');
+    setHumanizeProgress({ progress: 0, message: 'Initializing humanizer...' });
 
     try {
-      const results = await humanizeText(
-        inputText,
-        {},
-        (progress) => setScanProgress(progress)
-      );
-
+      const response = await fetch('/api/humanize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText, strength: humanizerStrength })
+      });
+      const results = await response.json();
+      
+      // Since it's a mock we just simulate the progress bar smoothly before showing result
+      for (let p = 10; p <= 100; p += 15) {
+        setHumanizeProgress({ progress: p, message: p < 50 ? 'Increasing Perplexity...' : 'Varying Burstiness...' });
+        await new Promise(r => setTimeout(r, 400));
+      }
+      
       setOutputText(results.humanizedText);
-      setOriginalWordCount(results.originalWordCount);
       setFinalWordCount(results.finalWordCount);
     } catch (error) {
-      console.error('Processing failed:', error);
+      console.error('Humanize failed:', error);
+    } finally {
+      setIsHumanizing(false);
+      setHumanizeProgress(null);
+    }
+  };
+
+  // Handle Scan
+  const handleScan = async () => {
+    if (!inputText.trim() && !documentFile) return;
+    setIsScanning(true);
+    setScanResults(null);
+
+    try {
+      const response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: inputText || 'Document text' })
+      });
+      const data = await response.json();
+      setScanResults(data);
+      
+      // Simulate applying highlights over original text using mock data
+      let highlighted = inputText || SAMPLE_TEXT;
+      data.matches.forEach(m => {
+        const color = m.type === 'plagiarism' ? 'bg-red-200 text-red-900' : 'bg-purple-200 text-purple-900';
+        // Simple string replace for demonstration
+        highlighted = highlighted.replace(m.text, `<mark id="${m.id}" class="rounded px-1 ${color} transition-all duration-300 ease-in-out cursor-pointer hover:ring-2 ring-indigo-400">${m.text}</mark>`);
+      });
+      setHighlightedText(highlighted);
+
+    } catch (error) {
+      console.error('Scan failed:', error);
     } finally {
       setIsScanning(false);
-      setScanProgress(null);
     }
-  }, [inputText]);
-
-  const loadSample = () => {
-    setInputText(SAMPLE_TEXT);
   };
 
-  const handleClear = () => {
-    setInputText('');
-    setOutputText('');
-  };
-
-  const copyToClipboard = () => {
-    if (outputText) {
-      navigator.clipboard.writeText(outputText);
-      // Optional: Add a temporary "Copied!" toast here
+  const scrollToHighlight = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-4', 'ring-indigo-500', 'scale-[1.02]');
+      setTimeout(() => el.classList.remove('ring-4', 'ring-indigo-500', 'scale-[1.02]'), 1500);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col dot-grid" style={{ backgroundColor: 'var(--background)' }}>
-      {/* Top Navigation Bar */}
-      <nav className="border-b bg-white relative z-10" style={{ borderColor: 'var(--border)' }}>
+    <div className="min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+      
+      {/* Navbar */}
+      <nav className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-sm">
         <div className="mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-teal-500">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-indigo-600 shadow-md shadow-indigo-200">
+              <ShieldAlert size={18} className="text-white" />
             </div>
             <span className="text-xl font-bold tracking-tight text-slate-800">
-              Origin<span className="text-teal-500">Check</span>
+              Origin<span className="text-indigo-600">Check</span>
             </span>
           </div>
           
-          <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-500">
-            <button className="text-teal-600 font-semibold border-b-2 border-teal-500 pb-5 translate-y-[10px]">Humanizer</button>
-            <button className="hover:text-slate-800 transition-colors">AI detector</button>
-            <button className="hover:text-slate-800 transition-colors">Plagiarism checker</button>
+          <div className="hidden md:flex flex-1 justify-center items-center gap-8 text-sm font-semibold text-slate-500">
+            <button 
+              onClick={() => setActiveTab('scanner')}
+              className={cn("flex items-center gap-2 transition-all border-b-2 py-5 translate-y-[1px]", 
+                activeTab === 'scanner' ? "text-indigo-600 border-indigo-600" : "border-transparent hover:text-slate-800")}
+            >
+              <FileSearch size={16} /> Integrity Scanner
+            </button>
+            <button 
+              onClick={() => setActiveTab('humanizer')}
+              className={cn("flex items-center gap-2 transition-all border-b-2 py-5 translate-y-[1px]", 
+                activeTab === 'humanizer' ? "text-emerald-500 border-emerald-500" : "border-transparent hover:text-slate-800")}
+            >
+              <Zap size={16} /> AI Humanizer
+            </button>
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors hidden sm:block">
-              Log in
-            </button>
-            <button className="px-4 py-2 rounded-lg text-sm font-semibold bg-teal-500 text-white hover:bg-teal-600 transition-colors">
-              Sign up
-            </button>
+            <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-sm font-medium text-slate-600 border border-slate-300">
+              JD
+            </div>
           </div>
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col p-4 md:p-6 lg:p-8 max-w-[1600px] w-full mx-auto">
+      {/* Main Container */}
+      <main className="flex-1 w-full max-w-[1500px] mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
         
-        {/* Modes Bar */}
-        <div className="flex items-center gap-4 mb-6 overflow-x-auto pb-2 scrollbar-hide">
-          {['Standard', 'Academic', 'Simple', 'Flowing', 'Informal', 'Formal', 'Expand'].map((mode, i) => (
-            <button 
-              key={mode}
-              className={`text-sm px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${i === 0 ? 'bg-white border border-slate-200 text-slate-800 font-medium shadow-sm' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
-            >
-              {mode}
-            </button>
-          ))}
-          
-          <div className="ml-auto flex items-center gap-3 pl-4 border-l border-slate-200">
-            <span className="text-sm text-slate-600 font-medium mr-2">Ultra run</span>
-            <label className="flex items-center cursor-pointer">
-              <button className="toggle-switch" disabled />
-            </label>
-          </div>
-        </div>
-
-        {/* Side-by-Side Editor Panels */}
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 h-full min-h-[550px]">
-          
-          {/* Left Panel: Input */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:border-teal-300 transition-all">
-            <div className="p-5 flex-1 relative flex flex-col">
-              {inputText && (
-                <button 
-                  onClick={handleClear}
-                  className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors z-10"
-                  title="Clear text"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              )}
-              
-              <textarea
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Insert (English) text here..."
-                className="flex-1 w-full bg-transparent resize-none focus:outline-none text-slate-700 leading-relaxed placeholder:text-slate-400 z-0 text-[15px]"
-              />
-              
-              {!inputText && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <button 
-                    onClick={loadSample}
-                    className="pointer-events-auto px-5 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-sm font-medium hover:bg-slate-50 hover:border-slate-300 shadow-sm transition-all flex items-center gap-2 group"
-                  >
-                    Try a sample
-                    <svg className="text-teal-500 group-hover:rotate-12 transition-transform" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
-                    </svg>
-                  </button>
+        {/* --- HUMANIZER TAB --- */}
+        {activeTab === 'humanizer' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} 
+            className="flex flex-col h-full flex-1 gap-4"
+          >
+            {/* Header Controls */}
+            <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-4">
+                <span className="text-sm font-semibold text-slate-600">Humanization Strength:</span>
+                <div className="flex bg-slate-100 p-1 rounded-lg">
+                  {['Low', 'Medium', 'High'].map(level => (
+                    <button
+                      key={level}
+                      onClick={() => setHumanizerStrength(level)}
+                      className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-all", 
+                        humanizerStrength === level ? "bg-white text-emerald-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
+                    >
+                      {level}
+                    </button>
+                  ))}
                 </div>
-              )}
-            </div>
-            
-            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <span className="text-sm font-medium text-slate-500 w-full sm:w-auto">
-                {wordCount} words
-              </span>
+              </div>
               <button
-                onClick={handleScan}
-                disabled={!inputText.trim() || isScanning}
-                className="w-full sm:w-auto px-8 py-3 rounded-lg text-sm font-bold shadow-sm transition-all flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-white hover:brightness-105 active:scale-[0.98]"
-                style={{ backgroundColor: 'var(--accent-primary)' }}
+                onClick={handleHumanize}
+                disabled={!inputText.trim() || isHumanizing}
+                className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {isScanning ? (
-                  <>
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Processing text...
-                  </>
-                ) : (
-                  'Humanize AI'
-                )}
+                {isHumanizing ? <Zap className="animate-pulse" size={16} /> : <Zap size={16} />}
+                {isHumanizing ? 'Transforming...' : 'Humanize Text'}
               </button>
             </div>
-          </div>
 
-          {/* Right Panel: Output */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col relative">
-            <AnimatePresence mode="wait">
-              {isScanning ? (
-                <motion.div 
-                  key="scanning"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute inset-0 z-10 processing-overlay flex flex-col items-center justify-center p-8 text-center"
-                >
-                  <div className="w-16 h-16 relative mb-6">
-                    <div className="absolute inset-0 rounded-full border-4 border-teal-100"></div>
-                    <div className="absolute inset-0 rounded-full border-4 border-teal-500 border-t-transparent animate-spin"></div>
+            {/* Split Panels */}
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[600px]">
+              {/* Input Panel */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col relative focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-300 transition-all overflow-hidden">
+                <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-100 flex justify-between items-center text-sm font-medium text-slate-500">
+                  <span>Input Text</span>
+                  <span className="text-slate-400">{wordCount} words</span>
+                </div>
+                <textarea
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Paste AI-generated text here, or try a sample..."
+                  className="flex-1 w-full bg-transparent resize-none p-5 focus:outline-none text-slate-700 leading-relaxed placeholder:text-slate-400 text-base"
+                />
+                {!inputText && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <button 
+                      onClick={() => setInputText(SAMPLE_TEXT)}
+                      className="pointer-events-auto px-5 py-2 rounded-lg border border-slate-200 bg-white text-emerald-600 text-sm font-medium hover:bg-slate-50 shadow-sm transition-all"
+                    >
+                      Load Sample Text
+                    </button>
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-800 mb-2">Analyzing your text</h3>
-                  <p className="text-sm text-slate-500 mb-4">{scanProgress?.message || 'Transforming vocabulary...'}</p>
-                  
-                  <div className="w-full max-w-xs h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <motion.div 
-                      className="h-full bg-teal-500 rounded-full"
-                      initial={{ width: '0%' }}
-                      animate={{ width: `${scanProgress?.progress || 0}%` }}
-                      transition={{ ease: "easeOut" }}
+                )}
+              </div>
+
+              {/* Output Panel */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col relative overflow-hidden">
+                <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-100 flex justify-between items-center text-sm font-medium text-slate-500">
+                  <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-emerald-500" /> Humanized Output</span>
+                  <span className="text-slate-400">{displayedText ? finalWordCount : 0} words</span>
+                </div>
+                
+                <div className="flex-1 relative p-5 bg-emerald-50/10">
+                  <AnimatePresence mode="wait">
+                    {isHumanizing ? (
+                      <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 backdrop-blur-sm z-10"
+                      >
+                        <div className="w-16 h-16 relative mb-6">
+                          <div className="absolute inset-0 rounded-full border-4 border-emerald-100"></div>
+                          <div className="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin"></div>
+                        </div>
+                        <h3 className="text-lg font-semibold text-slate-800 mb-2">Analyzing Perplexity & Burstiness</h3>
+                        <p className="text-sm text-slate-500 mb-4">{humanizeProgress?.message || 'Processing...'}</p>
+                        <div className="w-64 h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <motion.div className="h-full bg-emerald-500" animate={{ width: `${humanizeProgress?.progress || 0}%` }} transition={{ ease: 'easeOut' }} />
+                        </div>
+                      </motion.div>
+                    ) : displayedText ? (
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-full overflow-y-auto pr-2 pb-12">
+                        <div className="whitespace-pre-wrap leading-relaxed text-base text-slate-700 font-medium">
+                          {displayedText}
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-slate-400 italic text-sm">
+                        Transformed text will appear here...
+                      </div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                
+                {/* Actions */}
+                <div className="absolute bottom-4 right-5 flex gap-2">
+                   <button className="p-2.5 bg-white text-slate-500 hover:text-emerald-600 rounded-lg shadow-sm border border-slate-200 hover:border-emerald-200 transition-all flex items-center justify-center">
+                     <Copy size={16} />
+                   </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* --- SCANNER TAB --- */}
+        {activeTab === 'scanner' && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}
+            className="flex-1 flex flex-col lg:flex-row gap-6 min-h-[600px]"
+          >
+            {/* Document Viewer (Left) */}
+            <div className="flex-1 flex flex-col min-w-0 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-slate-50/80 px-5 py-4 border-b border-slate-200 flex justify-between items-center text-sm font-semibold text-slate-700">
+                <div className="flex items-center gap-2">
+                  <FileText size={18} className="text-indigo-500" /> Document Viewer
+                </div>
+                <button 
+                  onClick={handleScan}
+                  disabled={(!inputText.trim() && !documentFile) || isScanning}
+                  className="px-5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors disabled:opacity-50 text-xs font-bold shadow-sm"
+                >
+                  {isScanning ? 'Scanning...' : 'Scan for Plagiarism / AI'}
+                </button>
+              </div>
+
+              <div className="flex-1 relative">
+                {isScanning ? (
+                  <div className="absolute inset-0 bg-slate-50/50 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                    <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4" />
+                    <p className="text-slate-600 font-medium text-sm animate-pulse">Running Deep Integrity Scan...</p>
+                  </div>
+                ) : scanResults && highlightedText ? (
+                  <div className="absolute inset-0 p-6 overflow-y-auto">
+                    <div 
+                      className="whitespace-pre-wrap leading-relaxed text-base text-slate-800 font-serif"
+                      dangerouslySetInnerHTML={{ __html: highlightedText }}
                     />
                   </div>
-                </motion.div>
-              ) : outputText ? (
-                <motion.div
-                  key="results"
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="absolute inset-0 flex flex-col"
-                >
-                  <div className="flex-1 overflow-y-auto p-5">
-                    <div className="whitespace-pre-wrap leading-relaxed text-[15px] text-slate-700 font-medium">
-                      {outputText}
+                ) : (
+                  <div className="absolute inset-0 p-6 flex flex-col items-center justify-center">
+                    <textarea
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      placeholder="Paste text here to scan, or upload a .pdf / .docx..."
+                      className="w-full h-full bg-transparent resize-none p-2 focus:outline-none text-slate-700 leading-relaxed placeholder:text-slate-400 border border-dashed border-slate-300 rounded-xl hover:border-indigo-300 transition-colors focus:border-indigo-400"
+                    />
+                    {!inputText && (
+                       <div className="absolute pointer-events-none flex flex-col items-center justify-center text-slate-400 gap-3">
+                         <UploadCloud size={32} className="text-slate-300" />
+                         <span className="text-sm font-medium">Drag & Drop or Paste Text</span>
+                         <button className="pointer-events-auto text-xs px-3 py-1 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-600 font-semibold" onClick={() => setInputText(SAMPLE_TEXT)}>Use Sample text</button>
+                       </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Match Overview Sidebar (Right) */}
+            <div className="w-full lg:w-[400px] flex gap-4 flex-col">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 flex flex-col">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-6">Similarity Index</h3>
+                
+                <div className="relative w-48 h-48 mx-auto mb-6">
+                  {scanResults ? (
+                    <>
+                      <Doughnut 
+                        data={{
+                          labels: ['Plagiarism', 'AI Probability', 'Original'],
+                          datasets: [{
+                            data: [scanResults.similarityScore, scanResults.aiProbability, 100 - (scanResults.similarityScore + scanResults.aiProbability)],
+                            backgroundColor: ['#ef4444', '#a855f7', '#f1f5f9'],
+                            borderWidth: 0,
+                            cutout: '75%',
+                            hoverOffset: 4
+                          }]
+                        }}
+                        options={{ plugins: { legend: { display: false } } }}
+                      />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                         <span className="text-3xl font-black text-slate-800">{scanResults.similarityScore + scanResults.aiProbability}%</span>
+                         <span className="text-xs font-semibold text-slate-500">Non-Original</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full h-full rounded-full border-[16px] border-slate-100 flex items-center justify-center">
+                       <span className="text-slate-300 font-bold text-2xl">--%</span>
+                    </div>
+                  )}
+                </div>
+
+                {scanResults && (
+                  <div className="flex gap-4 mb-2">
+                    <div className="flex-1 bg-red-50 p-3 rounded-lg border border-red-100">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 rounded-full bg-red-500" /> 
+                        <span className="text-xs font-bold text-red-800">Plagiarism</span>
+                      </div>
+                      <span className="text-xl font-bold text-red-600">{scanResults.similarityScore}%</span>
+                    </div>
+                    <div className="flex-1 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-2 h-2 rounded-full bg-purple-500" /> 
+                        <span className="text-xs font-bold text-purple-800">AI Logic</span>
+                      </div>
+                      <span className="text-xl font-bold text-purple-600">{scanResults.aiProbability}%</span>
                     </div>
                   </div>
-                </motion.div>
-              ) : (
-                <motion.div 
-                  key="empty"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="absolute inset-0 p-5 text-slate-400 leading-relaxed text-[15px]"
-                >
-                  Paraphrased text will appear here...
-                </motion.div>
-              )}
-            </AnimatePresence>
+                )}
+              </div>
 
-            {/* Bottom Status Bar for output panel */}
-            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between mt-auto z-20">
-              <span className="text-sm font-medium text-slate-500">
-                {outputText ? finalWordCount : 0} words
-              </span>
-              
-              {outputText && (
-                <div className="flex gap-2">
-                  <button 
-                    onClick={copyToClipboard}
-                    className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors border border-transparent hover:border-teal-100" 
-                    title="Copy text"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                    </svg>
-                  </button>
-                  <button className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors border border-transparent hover:border-teal-100" title="Download (.txt)">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                      <polyline points="7 10 12 15 17 10"></polyline>
-                      <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                  </button>
+              {/* Match Cards */}
+              {scanResults?.matches && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col">
+                   <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                     <h3 className="text-sm font-bold text-slate-800">Matched Sources</h3>
+                   </div>
+                   <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-3">
+                     {scanResults.matches.map((match, idx) => (
+                       <button 
+                         key={match.id}
+                         onClick={() => scrollToHighlight(match.id)}
+                         className="text-left p-4 rounded-xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all flex flex-col group bg-white"
+                       >
+                         <div className="flex justify-between items-start mb-2">
+                           <span className={cn("text-[10px] uppercase font-bold px-2 py-0.5 rounded-full tracking-wider", 
+                             match.type === 'plagiarism' ? "bg-red-100 text-red-700" : "bg-purple-100 text-purple-700")}>
+                             {match.type === 'plagiarism' ? 'Internet Source' : 'AI Generation'}
+                           </span>
+                           <span className="text-xs font-bold text-slate-500">{match.matchPercentage}% match</span>
+                         </div>
+                         <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-3">"{match.text}"</p>
+                         <div className="flex items-center text-xs text-indigo-600 font-semibold group-hover:text-indigo-700 mt-auto">
+                           {match.source} <ChevronRight size={12} className="ml-1 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                         </div>
+                       </button>
+                     ))}
+                   </div>
                 </div>
               )}
             </div>
-          </div>
-        </div>
+          </motion.div>
+        )}
       </main>
-      
-      {/* Simple Footer */}
-      <footer className="text-center py-4 text-xs text-slate-400 border-t border-slate-200 bg-white">
-        © 2026 OriginCheck. We use cookies to ensure that we give you the best experience on our website.
-      </footer>
     </div>
   );
 }
