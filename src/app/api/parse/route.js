@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-const pdfParse = require('pdf-parse');
+const PDFParser = require('pdf2json');
 const mammoth = require('mammoth');
 
 export const dynamic = 'force-dynamic';
@@ -19,8 +19,14 @@ export async function POST(req) {
     let text = '';
 
     if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
-      const data = await pdfParse(buffer);
-      text = data.text;
+      text = await new Promise((resolve, reject) => {
+        const pdfParser = new PDFParser(this, 1);
+        pdfParser.on("pdfParser_dataError", errData => reject(errData.parserError));
+        pdfParser.on("pdfParser_dataReady", pdfData => {
+            resolve(pdfParser.getRawTextContent());
+        });
+        pdfParser.parseBuffer(buffer);
+      });
     } else if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
       const result = await mammoth.extractRawText({ buffer });
       text = result.value;
