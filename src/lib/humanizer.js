@@ -125,13 +125,15 @@ function replaceAIOpeners(text) {
 }
 
 // ─── Step 2: Synonym replacement ─────────────────────────────────────────────
-function replaceSynonyms(text) {
+function replaceSynonyms(text, strengthMultiplier = 1) {
   // Build a regex that matches whole words only
   const keys = Object.keys(SYNONYMS).sort((a, b) => b.length - a.length);
   const pattern = new RegExp(`\\b(${keys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'gi');
 
   return text.replace(pattern, (match) => {
-    if (Math.random() < 0.75) { // 75% replacement rate
+    // scale 0.75 by strength multiplier. Cap at 0.95.
+    const threshold = Math.min(0.75 * strengthMultiplier, 0.95);
+    if (Math.random() < threshold) { 
       const lower = match.toLowerCase();
       const choices = SYNONYMS[lower];
       if (!choices) return match;
@@ -147,27 +149,27 @@ function replaceSynonyms(text) {
 }
 
 // ─── Step 3: Break up long, formal compound sentences ────────────────────────
-function breakLongSentences(text) {
+function breakLongSentences(text, strengthMultiplier = 1) {
   // Split on ", which " → ". This/It "
   text = text.replace(/,\s*which\s+([a-z])/g, (_, c) => {
-    return Math.random() > 0.4 ? `. This ${c}` : `, which ${c}`;
+    return Math.random() < Math.min(0.6 * strengthMultiplier, 0.9) ? `. This ${c}` : `, which ${c}`;
   });
 
   // Split on ", and " in long sentences
   text = text.replace(/([^.!?]{80,}),\s*and\s+([a-z])/g, (match, before, c) => {
-    return Math.random() > 0.5 ? `${before}. And ${c}` : match;
+    return Math.random() < Math.min(0.5 * strengthMultiplier, 0.9) ? `${before}. And ${c}` : match;
   });
 
   // Split on "; " in long sentences
   text = text.replace(/([^.!?]{60,});\s*([A-Z])/g, (match, before, c) => {
-    return Math.random() > 0.4 ? `${before}. ${c}` : match;
+    return Math.random() < Math.min(0.6 * strengthMultiplier, 0.9) ? `${before}. ${c}` : match;
   });
 
   return text;
 }
 
 // ─── Step 4: Vary sentence structure ─────────────────────────────────────────
-function varySentenceStructure(text) {
+function varySentenceStructure(text, strengthMultiplier = 1) {
   const sentences = text.split(/(?<=[.!?])\s+/);
   const result = [];
 
@@ -175,12 +177,12 @@ function varySentenceStructure(text) {
     let s = sentences[i];
 
     // Occasionally prepend a natural transition (not too often)
-    if (i > 0 && i % 5 === 0 && Math.random() > 0.6) {
+    if (i > 0 && i % 5 === 0 && Math.random() < Math.min(0.4 * strengthMultiplier, 0.8)) {
       s = pick(NATURAL_TRANSITIONS) + ' ' + s.charAt(0).toLowerCase() + s.slice(1);
     }
 
     // Occasionally add a short clarifying clause
-    if (s.length > 120 && Math.random() > 0.7) {
+    if (s.length > 120 && Math.random() < Math.min(0.3 * strengthMultiplier, 0.7)) {
       const midPoint = s.lastIndexOf(' ', Math.floor(s.length / 2));
       if (midPoint > 0) {
         const filler = pick(HUMAN_FILLERS);
@@ -246,11 +248,15 @@ function cleanUp(text) {
 export async function humanizeText(text, options = {}, onProgress) {
   if (!text || !text.trim()) return '';
 
+  let strengthMultiplier = 1;
+  if (options.strength === 'Low') strengthMultiplier = 0.5;
+  if (options.strength === 'High') strengthMultiplier = 1.5;
+
   onProgress?.({ progress: 10, message: 'Analyzing text structure...' });
   await delay(600 + Math.random() * 400);
 
   onProgress?.({ progress: 25, message: 'Replacing AI vocabulary...' });
-  let processed = replaceSynonyms(text);
+  let processed = replaceSynonyms(text, strengthMultiplier);
   await delay(400 + Math.random() * 300);
 
   onProgress?.({ progress: 40, message: 'Rewriting sentence openers...' });
@@ -258,7 +264,7 @@ export async function humanizeText(text, options = {}, onProgress) {
   await delay(400 + Math.random() * 300);
 
   onProgress?.({ progress: 55, message: 'Breaking up formal structures...' });
-  processed = breakLongSentences(processed);
+  processed = breakLongSentences(processed, strengthMultiplier);
   await delay(400 + Math.random() * 300);
 
   onProgress?.({ progress: 68, message: 'Reducing passive voice...' });
@@ -266,7 +272,7 @@ export async function humanizeText(text, options = {}, onProgress) {
   await delay(300 + Math.random() * 200);
 
   onProgress?.({ progress: 80, message: 'Varying sentence flow...' });
-  processed = varySentenceStructure(processed);
+  processed = varySentenceStructure(processed, strengthMultiplier);
   await delay(300 + Math.random() * 200);
 
   onProgress?.({ progress: 90, message: 'Adding natural tone...' });
