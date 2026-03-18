@@ -429,6 +429,13 @@ export default function HomePage() {
           </motion.div>
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="w-full py-6 mt-auto border-t border-slate-200 bg-white">
+        <div className="mx-auto flex items-center justify-center gap-1.5 text-sm font-medium text-slate-500">
+          Crafted with <span className="text-pink-500 animate-pulse">❤️</span> by <span className="text-slate-700 font-bold">Arjun L</span>
+        </div>
+      </footer>
     </div>
   );
 }
