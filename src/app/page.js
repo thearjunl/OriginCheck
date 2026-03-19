@@ -80,18 +80,31 @@ export default function HomePage() {
     setHumanizeProgress({ progress: 0, message: 'Initializing humanizer...' });
 
     try {
+      // Run progress animation concurrently with the API call
+      const progressMessages = [
+        'Analyzing text patterns...', 'Increasing Perplexity...', 
+        'Varying Burstiness...', 'Restructuring sentences...', 'Finalizing...'
+      ];
+      let progressCancelled = false;
+      const progressAnimation = (async () => {
+        for (let p = 10; p <= 85; p += 12) {
+          if (progressCancelled) break;
+          const msgIdx = Math.min(Math.floor(p / 20), progressMessages.length - 1);
+          setHumanizeProgress({ progress: p, message: progressMessages[msgIdx] });
+          await new Promise(r => setTimeout(r, 500 + Math.random() * 300));
+        }
+      })();
+
       const response = await fetch('/api/humanize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: inputText, strength: humanizerStrength })
       });
       const results = await response.json();
-      
-      // Since it's a mock we just simulate the progress bar smoothly before showing result
-      for (let p = 10; p <= 100; p += 15) {
-        setHumanizeProgress({ progress: p, message: p < 50 ? 'Increasing Perplexity...' : 'Varying Burstiness...' });
-        await new Promise(r => setTimeout(r, 400));
-      }
+      progressCancelled = true;
+
+      setHumanizeProgress({ progress: 100, message: 'Done!' });
+      await new Promise(r => setTimeout(r, 300));
       
       setOutputText(results.humanizedText);
       setFinalWordCount(results.finalWordCount);
