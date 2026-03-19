@@ -157,8 +157,8 @@ export default function HomePage() {
   };
 
   const handleCopy = () => {
-    if (!displayedText) return;
-    navigator.clipboard.writeText(displayedText);
+    if (!outputText) return;
+    navigator.clipboard.writeText(outputText);
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 2000);
   };
