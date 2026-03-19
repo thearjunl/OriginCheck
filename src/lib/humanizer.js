@@ -239,17 +239,17 @@ function varySentenceStructure(text, strengthMultiplier = 1) {
 
 // ─── Step 5: Remove overly formal passive constructions ──────────────────────
 function reducePassiveVoice(text) {
-  text = text.replace(/\\bis being\\b/gi, 'gets');
-  text = text.replace(/\\bare being\\b/gi, 'get');
-  text = text.replace(/\\bwas being\\b/gi, 'was');
-  text = text.replace(/\\bhas been shown to\\b/gi, 'has proven to');
-  text = text.replace(/\\bit has been (found|shown|demonstrated) that\\b/gi, 'research shows that');
-  text = text.replace(/\\bit can be (seen|observed|noted) that\\b/gi, 'clearly,');
-  text = text.replace(/\\bwas found to be\\b/gi, 'turned out to be');
-  text = text.replace(/\\bwere found to be\\b/gi, 'turned out to be');
-  text = text.replace(/\\bcan be effectively bridged\\b/gi, 'can bridge well');
-  text = text.replace(/\\bcan be\\b/gi, 'can act as');
-  text = text.replace(/\\bis required\\b/gi, 'is needed');
+  text = text.replace(/\bis being\b/gi, 'gets');
+  text = text.replace(/\bare being\b/gi, 'get');
+  text = text.replace(/\bwas being\b/gi, 'was');
+  text = text.replace(/\bhas been shown to\b/gi, 'has proven to');
+  text = text.replace(/\bit has been (found|shown|demonstrated) that\b/gi, 'research shows that');
+  text = text.replace(/\bit can be (seen|observed|noted) that\b/gi, 'clearly,');
+  text = text.replace(/\bwas found to be\b/gi, 'turned out to be');
+  text = text.replace(/\bwere found to be\b/gi, 'turned out to be');
+  text = text.replace(/\bcan be effectively bridged\b/gi, 'can bridge well');
+  text = text.replace(/\bcan be\b/gi, 'can act as');
+  text = text.replace(/\bis required\b/gi, 'is needed');
   return text;
 }
 
@@ -282,21 +282,21 @@ function applyContractions(text, strengthMultiplier = 1) {
   
   let result = text;
   const contractions = [
-    [/\\bdo not\\b/gi, "don't"],
-    [/\\bcannot\\b/gi, "can't"],
-    [/\\bI am\\b/gi, "I'm"],
-    [/\\bIt is\\b/gi, "It's"],
-    [/\\bthat is\\b/gi, "that's"],
-    [/\\bthere is\\b/gi, "there's"],
-    [/\\bare not\\b/gi, "aren't"],
-    [/\\bis not\\b/gi, "isn't"],
-    [/\\bdoes not\\b/gi, "doesn't"],
-    [/\\bwill not\\b/gi, "won't"],
-    [/\\bwould not\\b/gi, "wouldn't"],
-    [/\\bcould not\\b/gi, "couldn't"],
-    [/\\bshould not\\b/gi, "shouldn't"],
-    [/\\bhave not\\b/gi, "haven't"],
-    [/\\bhas not\\b/gi, "hasn't"]
+    [/\bdo not\b/gi, "don't"],
+    [/\bcannot\b/gi, "can't"],
+    [/\bI am\b/gi, "I'm"],
+    [/\bIt is\b/gi, "It's"],
+    [/\bthat is\b/gi, "that's"],
+    [/\bthere is\b/gi, "there's"],
+    [/\bare not\b/gi, "aren't"],
+    [/\bis not\b/gi, "isn't"],
+    [/\bdoes not\b/gi, "doesn't"],
+    [/\bwill not\b/gi, "won't"],
+    [/\bwould not\b/gi, "wouldn't"],
+    [/\bcould not\b/gi, "couldn't"],
+    [/\bshould not\b/gi, "shouldn't"],
+    [/\bhave not\b/gi, "haven't"],
+    [/\bhas not\b/gi, "hasn't"]
   ];
 
   for (const [pattern, replacement] of contractions) {
