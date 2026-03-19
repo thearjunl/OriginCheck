@@ -15,9 +15,9 @@ const plexSans = IBM_Plex_Sans({
 });
 
 export const metadata = {
-  title: "OriginCheck — Plagiarism Detection Platform",
-  description: "Professional-grade plagiarism detection with multi-source scanning, AI detection, and comprehensive reports.",
-  keywords: "plagiarism, detection, originality, academic integrity, similarity check",
+  title: "OriginCheck — AI Humanizer & Integrity Scanner",
+  description: "Transform AI-generated text into natural, human-sounding content. Includes an integrity scanner for plagiarism and AI detection.",
+  keywords: "AI humanizer, text humanizer, AI detection, plagiarism check, content originality, bypass AI detection",
 };
 
 export default function RootLayout({ children }) {
