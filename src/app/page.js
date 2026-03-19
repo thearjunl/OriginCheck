@@ -9,6 +9,16 @@ import { cn } from '@/lib/utils';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+// Sanitize HTML to prevent XSS when using dangerouslySetInnerHTML
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 const SAMPLE_TEXT = `Artificial intelligence (AI) has become a transformative force across virtually every industry and academic discipline. Machine learning algorithms, a subset of AI, enable computers to learn from data without being explicitly programmed. Deep learning, which uses neural networks with multiple layers, has achieved remarkable breakthroughs in image recognition, natural language processing, and autonomous driving.
 
 The history of artificial intelligence dates back to the 1950s when Alan Turing proposed the concept of a machine that could simulate any human intelligence. The term "artificial intelligence" was first coined at the Dartmouth Conference in 1956 by John McCarthy. Since then, the field has experienced several periods of rapid advancement and stagnation, often referred to as "AI winters."
@@ -108,12 +118,12 @@ export default function HomePage() {
       const data = await response.json();
       setScanResults(data);
       
-      // Simulate applying highlights over original text using mock data
-      let highlighted = inputText || SAMPLE_TEXT;
+      // Sanitize text before injecting as HTML to prevent XSS
+      let highlighted = escapeHtml(inputText || SAMPLE_TEXT);
       data.matches.forEach(m => {
         const color = m.type === 'plagiarism' ? 'bg-red-200 text-red-900' : 'bg-purple-200 text-purple-900';
-        // Simple string replace for demonstration
-        highlighted = highlighted.replace(m.text, `<mark id="${m.id}" class="rounded px-1 ${color} transition-all duration-300 ease-in-out cursor-pointer hover:ring-2 ring-indigo-400">${m.text}</mark>`);
+        const safeText = escapeHtml(m.text);
+        highlighted = highlighted.replace(safeText, `<mark id="${escapeHtml(m.id)}" class="rounded px-1 ${color} transition-all duration-300 ease-in-out cursor-pointer hover:ring-2 ring-indigo-400">${safeText}</mark>`);
       });
       setHighlightedText(highlighted);
 
