@@ -6,6 +6,7 @@ import { FileText, Copy, Download, ShieldAlert, FileSearch, Zap, CheckCircle2, A
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { cn } from '@/lib/utils';
+import ErrorToast from '@/components/ErrorToast';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -46,6 +47,7 @@ export default function HomePage() {
 
   // UI
   const textInputRef = useRef(null);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   const wordCount = inputText.trim() ? inputText.trim().split(/\s+/).length : 0;
 
@@ -110,6 +112,8 @@ export default function HomePage() {
       setFinalWordCount(results.finalWordCount);
     } catch (error) {
       console.error('Humanize failed:', error);
+      setErrorMessage('Failed to humanize text. Please try again.');
+      setTimeout(() => setErrorMessage(null), 5000);
     } finally {
       setIsHumanizing(false);
       setHumanizeProgress(null);
@@ -142,6 +146,8 @@ export default function HomePage() {
 
     } catch (error) {
       console.error('Scan failed:', error);
+      setErrorMessage('Failed to scan document. Please try again.');
+      setTimeout(() => setErrorMessage(null), 5000);
     } finally {
       setIsScanning(false);
     }
@@ -218,6 +224,9 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+      
+      {/* Error Toast */}
+      <ErrorToast message={errorMessage} onDismiss={() => setErrorMessage(null)} />
       
       {/* Navbar */}
       <nav className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-sm">
