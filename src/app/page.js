@@ -6,8 +6,6 @@ import { FileText, Copy, Download, ShieldAlert, FileSearch, Zap, CheckCircle2, A
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { cn } from '@/lib/utils';
-import ErrorToast from '@/components/ErrorToast';
-import MobileNav from '@/components/MobileNav';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -170,29 +168,68 @@ export default function HomePage() {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
+  const parsePDFClientSide = async (file) => {
+    try {
+      // Use minified build to avoid Turbopack optional module errors (e.g. canvas)
+      const pdfjsLib = await import('pdfjs-dist/build/pdf.min.mjs');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+      const arrayBuffer = await file.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+      const loadingTask = pdfjsLib.getDocument({
+        data: uint8Array,
+        useSystemFonts: true,
+        verbosity: 0,
+      });
+      const pdf = await loadingTask.promise;
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items.map(item => item.str).join(' ');
+        fullText += pageText + '\n';
+      }
+      if (!fullText.trim()) {
+        throw new Error('No text content found in PDF');
+      }
+      return fullText.trim();
+    } catch (error) {
+      console.error('PDF parse error:', error);
+      throw new Error('Failed to parse PDF: ' + (error.message || 'Unknown error'));
+    }
+  };
+
   const handleFileUpload = async (file) => {
     if (!file) return;
     
     setIsParsing(true);
     setDocumentFile(file);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const res = await fetch('/api/parse', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      const data = await res.json();
-      if (res.ok) {
-        setInputText(data.text);
+      const fileName = file.name.toLowerCase();
+      let text = '';
+
+      if (fileName.endsWith('.pdf') || file.type === 'application/pdf') {
+        text = await parsePDFClientSide(file);
       } else {
-        alert(data.error || 'Failed to parse file');
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const res = await fetch('/api/parse', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        const data = await res.json();
+        if (res.ok) {
+          text = data.text;
+        } else {
+          throw new Error(data.error || 'Failed to parse file');
+        }
       }
+
+      setInputText(text);
     } catch (err) {
       console.error(err);
-      alert('Error parsing file');
+      alert(err.message || 'Error parsing file');
     } finally {
       setIsParsing(false);
     }
@@ -226,16 +263,12 @@ export default function HomePage() {
   return (
     <div className="min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
       
-      {/* Error Toast */}
-      <ErrorToast message={errorMessage} onDismiss={() => setErrorMessage(null)} />
-      
       {/* Navbar */}
       <nav className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-sm">
         <div className="mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center bg-white rounded-xl shadow-sm border border-slate-100 p-1.5 overflow-hidden">
-              <img src="/logo.png?v=2" alt="OriginCheck Logo" className="h-10 w-10 object-contain" />
-            </div>
+            <img src="/logo.png" alt="OriginCheck Logo" className="h-10 w-auto object-contain drop-shadow-sm" />
+            <span className="font-bold text-xl text-slate-800">OriginCheck</span>
           </div>
           
           <div className="hidden md:flex flex-1 justify-center items-center gap-8 text-sm font-semibold text-slate-500">
@@ -260,9 +293,6 @@ export default function HomePage() {
           </div>
         </div>
       </nav>
-
-      {/* Mobile Tab Navigation */}
-      <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Container */}
       <main className="flex-1 w-full max-w-[1500px] mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
