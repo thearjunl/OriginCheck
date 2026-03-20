@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FileText, Copy, Download, ShieldAlert, FileSearch, Zap, CheckCircle2, AlertTriangle, ChevronRight, UploadCloud } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
@@ -267,7 +268,7 @@ export default function HomePage() {
       <nav className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-sm">
         <div className="mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <img src="/logo.png" alt="OriginCheck Logo" className="h-10 w-auto object-contain drop-shadow-sm" />
+            <Image src="/logo.png" alt="OriginCheck Logo" width={160} height={40} className="h-10 w-auto object-contain drop-shadow-sm" />
             <span className="font-bold text-xl text-slate-800">OriginCheck</span>
           </div>
           
@@ -538,7 +539,7 @@ export default function HomePage() {
                            </span>
                            <span className="text-xs font-bold text-slate-500">{match.matchPercentage}% match</span>
                          </div>
-                         <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-3">"{match.text}"</p>
+                         <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed mb-3">&quot;{match.text}&quot;</p>
                          <div className="flex items-center text-xs text-indigo-600 font-semibold group-hover:text-indigo-700 mt-auto">
                            {match.source} <ChevronRight size={12} className="ml-1 opacity-0 group-hover:opacity-100 -translate-x-2 group-hover:translate-x-0 transition-all" />
                          </div>
