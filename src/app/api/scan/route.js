@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { chunkText, calculateCosineSimilarity, deduplicateMatches, extractKeyPhrases } from '@/lib/plagiarism';
+import { chunkText, calculateCosineSimilarity, deduplicateMatches, extractKeyPhrases } from '../../../lib/plagiarism';
 
 function detectAIHeuristic(text) {
   // Simple heuristic based on sentence length variation (Burstiness)
