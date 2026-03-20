@@ -7,6 +7,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { cn } from '@/lib/utils';
 import ErrorToast from '@/components/ErrorToast';
+import MobileNav from '@/components/MobileNav';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -259,6 +260,9 @@ export default function HomePage() {
           </div>
         </div>
       </nav>
+
+      {/* Mobile Tab Navigation */}
+      <MobileNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {/* Main Container */}
       <main className="flex-1 w-full max-w-[1500px] mx-auto p-4 md:p-6 lg:p-8 flex flex-col gap-6">
