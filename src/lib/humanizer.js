@@ -136,7 +136,9 @@ function delay(ms) {
 }
 
 function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+  if (!arr || arr.length === 0) return '';
+  const item = arr[Math.floor(Math.random() * arr.length)];
+  return item || '';
 }
 
 // ─── Step 1: Replace AI sentence openers ─────────────────────────────────────
@@ -213,7 +215,7 @@ function varySentenceStructure(text, strengthMultiplier = 1) {
       const midPoint = Math.floor(words.length / 2);
       if (midPoint > 3) {
         const filler = pick(HUMAN_FILLERS);
-        words.splice(midPoint, 0, '—', filler, '—');
+        words.splice(midPoint, 0, (', ' + filler + ','));
         s = words.join(' ');
       }
     }
@@ -325,7 +327,10 @@ function cleanUp(text) {
     .replace(/- ([a-z])/gi, '$1')
     .trim();
   
-  cleaned = cleaned.replace(/-\s+/g, '');
+  cleaned = cleaned
+    .replace(/undefined/gi, '')
+    .replace(/-\s+/g, '')
+    .trim();
   
   return cleaned;
 }
