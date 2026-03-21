@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
-const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
 
-// Ensure this route runs on the standard Node.js runtime, not Edge
 export const dynamic = 'force-dynamic';
-export const runtime = 'nodejs';
+
+async function parseDOCX(buffer) {
+  const mammoth = await import('mammoth');
+  const result = await mammoth.default.extractRawText({ buffer });
+  return result.value;
+}
 
 export async function POST(req) {
   try {
@@ -19,20 +21,24 @@ export async function POST(req) {
     const buffer = Buffer.from(arrayBuffer);
     
     let text = '';
+    const fileName = file.name.toLowerCase();
+    const fileType = file.type.toLowerCase();
 
-    if (file.name.endsWith('.pdf') || file.type === 'application/pdf') {
-      const data = await pdfParse(buffer);
-      text = data.text;
-    } else if (file.name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      const result = await mammoth.extractRawText({ buffer });
-      text = result.value;
-    } else if (file.name.endsWith('.txt') || file.type === 'text/plain') {
+    if (fileName.endsWith('.pdf') || fileType === 'application/pdf') {
+      return NextResponse.json({ 
+        needsClientParsing: true, 
+        fileData: arrayBuffer ? Buffer.from(arrayBuffer).toString('base64') : '',
+        message: 'PDF parsing will be done client-side' 
+      });
+    } else if (fileName.endsWith('.docx') || fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      text = await parseDOCX(buffer);
+    } else if (fileName.endsWith('.txt') || fileType === 'text/plain') {
       text = buffer.toString('utf-8');
     } else {
       return NextResponse.json({ error: 'Unsupported file type. Please upload a .pdf, .docx, or .txt file.' }, { status: 400 });
     }
 
-    return NextResponse.json({ text });
+    return NextResponse.json({ text, needsClientParsing: false });
   } catch (error) {
     console.error('File parsing error:', error);
     return NextResponse.json({ error: 'Error parsing file: ' + error.message }, { status: 500 });
