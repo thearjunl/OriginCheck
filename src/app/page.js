@@ -108,7 +108,8 @@ export default function HomePage() {
       setHumanizeProgress({ progress: 100, message: 'Done!' });
       await new Promise(r => setTimeout(r, 300));
       
-      setOutputText(results.humanizedText);
+      const safeText = (results.humanizedText || '').replace(/\s*undefined$/i, '').trim();
+      setOutputText(safeText);
       setFinalWordCount(results.finalWordCount);
     } catch (error) {
       console.error('Humanize failed:', error);
