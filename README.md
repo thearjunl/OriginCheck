@@ -4,7 +4,7 @@
   <p>A high-fidelity, dual-engine platform combining professional plagiarism detection with sophisticated AI-text humanization.</p>
 </div>
 
----
+--- 
 
 ## 🌟 Overview
 
