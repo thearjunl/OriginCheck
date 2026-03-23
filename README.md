@@ -1,4 +1,4 @@
-<div align="center">
+ <div align="center">
   <img src="public/logo.png" alt="OriginCheck Logo" width="150"/>
   <h1>OriginCheck: AI Integrity & Humanization Suite</h1>
   <p>A high-fidelity, dual-engine platform combining professional plagiarism detection with sophisticated AI-text humanization.</p>
