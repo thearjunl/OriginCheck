@@ -45,6 +45,8 @@ export default function HomePage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
   const [detectedImages, setDetectedImages] = useState(null); // { count, pages }
+  const [pdfPageImages, setPdfPageImages] = useState([]); // data URL images of each rendered PDF page
+  const [documentInfo, setDocumentInfo] = useState(null); // { name, pages, charCount, uploadedAt }
 
   // UI
   const textInputRef = useRef(null);
@@ -188,12 +190,28 @@ export default function HomePage() {
       let fullText = '';
       let imageCount = 0;
       const imagePages = [];
+      const renderedPages = [];
 
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map(item => item.str).join(' ');
         fullText += pageText + '\n';
+
+        // Render the page to a canvas to capture the visual (images, formulas, etc.)
+        try {
+          const scale = 1.5;
+          const viewport = page.getViewport({ scale });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          const ctx = canvas.getContext('2d');
+          await page.render({ canvasContext: ctx, viewport }).promise;
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          renderedPages.push({ page: i, dataUrl, width: viewport.width, height: viewport.height });
+        } catch (renderErr) {
+          console.warn(`Page ${i} render failed:`, renderErr);
+        }
 
         // Detect images using the operator list
         try {
@@ -214,11 +232,20 @@ export default function HomePage() {
         }
       }
 
+      setPdfPageImages(renderedPages);
+
       if (imageCount > 0) {
         setDetectedImages({ count: imageCount, pages: imagePages });
       } else {
         setDetectedImages(null);
       }
+
+      setDocumentInfo({
+        name: file.name,
+        pages: pdf.numPages,
+        charCount: fullText.length,
+        uploadedAt: new Date().toLocaleString(),
+      });
 
       if (!fullText.trim()) {
         throw new Error('No text content found in PDF');
@@ -441,6 +468,299 @@ export default function HomePage() {
     doc.save(`OriginCheck_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
+  // Generate DETAILED PDF Report with page images
+  const generateDetailedPDFReport = async () => {
+    if (!scanResults) return;
+    
+    const { jsPDF } = await import('jspdf');
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    const addPageIfNeeded = (neededSpace = 30) => {
+      if (y + neededSpace > pageHeight - 25) {
+        doc.addPage();
+        y = 20;
+      }
+    };
+
+    // ─── PAGE 1: HEADER + DOCUMENT INFO + SCAN SUMMARY ───
+    doc.setFillColor(79, 70, 229);
+    doc.rect(0, 0, pageWidth, 45, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OriginCheck', margin, 20);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Detailed Integrity Scan Report', margin, 30);
+    doc.setFontSize(9);
+    doc.text(`Report Generated: ${new Date().toLocaleString()}`, margin, 40);
+
+    y = 58;
+    doc.setTextColor(30, 41, 59);
+
+    // ─── DOCUMENT INFORMATION ───
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Document Information', margin, y);
+    y += 8;
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    const docInfoHeight = documentInfo ? 52 : 25;
+    doc.roundedRect(margin, y, contentWidth, docInfoHeight, 3, 3, 'FD');
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+
+    if (documentInfo) {
+      const labelX = margin + 8;
+      const valueX = margin + 55;
+      let infoY = y + 10;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('File Name:', labelX, infoY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(documentInfo.name || 'N/A', valueX, infoY);
+      infoY += 10;
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('Total Pages:', labelX, infoY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(documentInfo.pages || 'N/A'), valueX, infoY);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Characters:', labelX + 80, infoY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(documentInfo.charCount || 'N/A'), valueX + 80, infoY);
+      infoY += 10;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Words:', labelX, infoY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(scanResults.wordCount || 'N/A'), valueX, infoY);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Uploaded:', labelX + 80, infoY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(documentInfo.uploadedAt || 'N/A', valueX + 80, infoY);
+      infoY += 10;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text('Images:', labelX, infoY);
+      doc.setFont('helvetica', 'normal');
+      doc.text(detectedImages ? `${detectedImages.count} detected` : 'None detected', valueX, infoY);
+    } else {
+      doc.text('Document uploaded via text input (no file metadata available)', margin + 8, y + 14);
+    }
+    y += docInfoHeight + 10;
+
+    // ─── SCAN RESULTS OVERVIEW ───
+    addPageIfNeeded(75);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    doc.text('Scan Results Overview', margin, y);
+    y += 10;
+
+    // Similarity Score box
+    doc.setFillColor(254, 242, 242);
+    doc.setDrawColor(252, 165, 165);
+    doc.roundedRect(margin, y, contentWidth / 3 - 4, 40, 3, 3, 'FD');
+    doc.setFontSize(8);
+    doc.setTextColor(153, 27, 27);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PLAGIARISM', margin + 6, y + 10);
+    doc.setFontSize(22);
+    doc.setTextColor(220, 38, 38);
+    doc.text(`${scanResults.similarityScore}%`, margin + 6, y + 30);
+
+    // AI Probability box
+    const col2X = margin + contentWidth / 3 + 2;
+    doc.setFillColor(250, 245, 255);
+    doc.setDrawColor(216, 180, 254);
+    doc.roundedRect(col2X, y, contentWidth / 3 - 4, 40, 3, 3, 'FD');
+    doc.setFontSize(8);
+    doc.setTextColor(88, 28, 135);
+    doc.setFont('helvetica', 'bold');
+    doc.text('AI PROBABILITY', col2X + 6, y + 10);
+    doc.setFontSize(22);
+    doc.setTextColor(147, 51, 234);
+    doc.text(`${scanResults.aiProbability}%`, col2X + 6, y + 30);
+
+    // Originality box
+    const col3X = margin + (contentWidth / 3) * 2 + 4;
+    const originalPct = Math.max(0, 100 - scanResults.similarityScore - scanResults.aiProbability);
+    doc.setFillColor(240, 253, 244);
+    doc.setDrawColor(134, 239, 172);
+    doc.roundedRect(col3X, y, contentWidth / 3 - 4, 40, 3, 3, 'FD');
+    doc.setFontSize(8);
+    doc.setTextColor(22, 101, 52);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ORIGINAL', col3X + 6, y + 10);
+    doc.setFontSize(22);
+    doc.setTextColor(22, 163, 74);
+    doc.text(`${originalPct}%`, col3X + 6, y + 30);
+
+    y += 50;
+
+    // Sources info
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Plagiarism Source: ${scanResults.sources?.plagiarismSearch || 'N/A'}`, margin, y);
+    doc.text(`AI Detection: ${scanResults.sources?.aiDetection || 'N/A'}`, margin + 90, y);
+    y += 12;
+
+    // ─── IMAGE DETECTION DETAILS ───
+    if (detectedImages && detectedImages.count > 0) {
+      addPageIfNeeded(45);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('Image Detection Details', margin, y);
+      y += 8;
+
+      doc.setFillColor(255, 251, 235);
+      doc.setDrawColor(253, 224, 71);
+      doc.roundedRect(margin, y, contentWidth, 30, 3, 3, 'FD');
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(146, 64, 14);
+      doc.text(`${detectedImages.count} image(s) detected across ${detectedImages.pages.length} page(s)`, margin + 8, y + 12);
+
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      const pageList = detectedImages.pages.map(p => `Page ${p.page}: ${p.count} image(s)`).join('  |  ');
+      doc.text(pageList, margin + 8, y + 22);
+      y += 40;
+
+      // Note about images
+      doc.setFontSize(8);
+      doc.setTextColor(100, 116, 139);
+      doc.setFont('helvetica', 'italic');
+      doc.text('Note: Images in the original document may contain text not captured by text extraction.', margin, y);
+      doc.text('Review the document preview pages below for full visual content.', margin, y + 8);
+      y += 18;
+    }
+
+    // ─── MATCHED SOURCES ───
+    if (scanResults.matches && scanResults.matches.length > 0) {
+      addPageIfNeeded(30);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Matched Sources (${scanResults.matches.length})`, margin, y);
+      y += 10;
+
+      scanResults.matches.forEach((match, idx) => {
+        addPageIfNeeded(50);
+        
+        const isPlagiarism = match.type === 'plagiarism';
+        doc.setFillColor(isPlagiarism ? 254 : 250, isPlagiarism ? 242 : 245, isPlagiarism ? 242 : 255);
+        doc.setDrawColor(isPlagiarism ? 252 : 233, isPlagiarism ? 165 : 213, isPlagiarism ? 165 : 255);
+        doc.roundedRect(margin, y, contentWidth, 42, 3, 3, 'FD');
+
+        // Badge + match percentage
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(isPlagiarism ? 185 : 126, isPlagiarism ? 28 : 34, isPlagiarism ? 28 : 206);
+        doc.text(`#${idx + 1}  ${isPlagiarism ? 'INTERNET SOURCE' : 'AI GENERATION'}`, margin + 6, y + 8);
+        
+        doc.setTextColor(71, 85, 105);
+        doc.setFontSize(10);
+        doc.text(`${match.matchPercentage}%`, margin + contentWidth - 20, y + 8);
+
+        // Snippet
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        const snippetLines = doc.splitTextToSize(`"${match.text}"`, contentWidth - 16);
+        doc.text(snippetLines.slice(0, 3), margin + 6, y + 17);
+
+        // Source URL
+        doc.setTextColor(79, 70, 229);
+        doc.setFontSize(7);
+        const sourceText = String(match.source || '').substring(0, 100);
+        doc.text(sourceText, margin + 6, y + 37);
+
+        y += 47;
+      });
+    } else {
+      addPageIfNeeded(20);
+      doc.setFontSize(11);
+      doc.setTextColor(100, 116, 139);
+      doc.text('No matched sources found. The document appears to be original.', margin, y);
+      y += 15;
+    }
+
+    // ─── DOCUMENT PREVIEW PAGES (rendered images) ───
+    if (pdfPageImages.length > 0) {
+      doc.addPage();
+      y = 20;
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('Document Preview', margin, y);
+      y += 6;
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text('Rendered pages from the uploaded PDF showing images, formulas, and formatting.', margin, y);
+      y += 12;
+
+      for (const pageImg of pdfPageImages) {
+        // Calculate image size to fit within content width while maintaining aspect ratio
+        const ratio = pageImg.height / pageImg.width;
+        const imgWidth = Math.min(contentWidth, 170);
+        const imgHeight = imgWidth * ratio;
+
+        // If the image won't fit on current page, add a new page
+        if (y + imgHeight + 15 > pageHeight - 20) {
+          doc.addPage();
+          y = 20;
+        }
+
+        // Page label
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(79, 70, 229);
+        doc.text(`Page ${pageImg.page}`, margin, y + 4);
+        y += 8;
+
+        // Add the rendered page image
+        try {
+          doc.addImage(pageImg.dataUrl, 'JPEG', margin, y, imgWidth, imgHeight);
+          // Border around the image
+          doc.setDrawColor(203, 213, 225);
+          doc.rect(margin, y, imgWidth, imgHeight);
+        } catch (imgAddErr) {
+          doc.setFontSize(8);
+          doc.setTextColor(239, 68, 68);
+          doc.text(`[Page ${pageImg.page} image could not be embedded]`, margin, y + 10);
+        }
+        y += imgHeight + 12;
+      }
+    }
+
+    // ─── FOOTER on every page ───
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+      doc.setFontSize(7);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Generated by OriginCheck — Integrity Scanner', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      doc.text(`Page ${p} of ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
+    }
+
+    doc.save(`OriginCheck_Detailed_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   return (
     <div className="min-h-screen flex flex-col font-sans bg-slate-50 text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
       
@@ -607,11 +927,34 @@ export default function HomePage() {
                     <p className="text-slate-600 font-medium text-sm animate-pulse">Running Deep Integrity Scan...</p>
                   </div>
                 ) : scanResults && highlightedText ? (
-                  <div className="absolute inset-0 p-6 overflow-y-auto">
-                    <div 
-                      className="whitespace-pre-wrap leading-relaxed text-base text-slate-800 font-serif"
-                      dangerouslySetInnerHTML={{ __html: highlightedText }}
-                    />
+                  <div className="absolute inset-0 overflow-y-auto">
+                    {/* Show rendered PDF page images if available */}
+                    {pdfPageImages.length > 0 && (
+                      <div className="p-4 space-y-4 border-b border-slate-200 bg-slate-50/50">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                          <ImageIcon size={12} /> Document Pages ({pdfPageImages.length})
+                        </h4>
+                        {pdfPageImages.map((pageImg) => (
+                          <div key={pageImg.page} className="relative">
+                            <span className="absolute top-2 left-2 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
+                              Page {pageImg.page}
+                            </span>
+                            <img 
+                              src={pageImg.dataUrl} 
+                              alt={`Page ${pageImg.page}`}
+                              className="w-full rounded-lg border border-slate-200 shadow-sm"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {/* Highlighted text */}
+                    <div className="p-6">
+                      <div 
+                        className="whitespace-pre-wrap leading-relaxed text-base text-slate-800 font-serif"
+                        dangerouslySetInnerHTML={{ __html: highlightedText }}
+                      />
+                    </div>
                   </div>
                 ) : isParsing ? (
                   <div className="absolute inset-0 bg-slate-50/50 backdrop-blur-sm flex flex-col items-center justify-center z-10">
@@ -620,26 +963,56 @@ export default function HomePage() {
                   </div>
                 ) : (
                   <div 
-                    className={`absolute inset-0 p-6 flex flex-col items-center justify-center transition-all ${isDragging ? 'bg-indigo-50/50' : ''}`}
+                    className={`absolute inset-0 flex flex-col transition-all ${isDragging ? 'bg-indigo-50/50' : ''}`}
                     onDragOver={onDragOver}
                     onDragLeave={onDragLeave}
                     onDrop={onDrop}
                   >
-                    <textarea
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      placeholder=""
-                      className={`w-full h-full bg-transparent resize-none p-2 focus:outline-none text-slate-700 leading-relaxed placeholder:text-slate-400 border border-dashed rounded-xl transition-colors ${isDragging ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-300 hover:border-indigo-300 focus:border-indigo-400'}`}
-                    />
-                    {!inputText && (
-                       <div className="absolute pointer-events-none flex flex-col items-center justify-center text-slate-400 gap-3">
-                         <UploadCloud size={32} className={`transition-colors ${isDragging ? 'text-indigo-500' : 'text-slate-300'}`} />
-                         <span className="text-sm font-medium">{isDragging ? 'Drop file here!' : 'Drag & Drop or Paste Text'}</span>
-                         <label className="pointer-events-auto cursor-pointer text-xs px-4 py-1.5 bg-white border border-slate-200 shadow-sm hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50 rounded-full text-slate-600 font-semibold transition-all">
-                           Select File
-                           <input type="file" className="hidden" accept=".pdf,.docx,.txt" onChange={handleFileSelect} />
-                         </label>
-                       </div>
+                    {/* Show rendered PDF pages before scan if available */}
+                    {pdfPageImages.length > 0 && inputText ? (
+                      <div className="flex-1 overflow-y-auto">
+                        <div className="p-4 space-y-4">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2 sticky top-0 bg-white/90 backdrop-blur-sm py-2 z-10">
+                            <ImageIcon size={12} /> Document Preview ({pdfPageImages.length} pages)
+                            {detectedImages && detectedImages.count > 0 && (
+                              <span className="ml-auto text-amber-600 font-semibold flex items-center gap-1">
+                                <ImageIcon size={10} /> {detectedImages.count} image{detectedImages.count !== 1 ? 's' : ''} detected
+                              </span>
+                            )}
+                          </h4>
+                          {pdfPageImages.map((pageImg) => (
+                            <div key={pageImg.page} className="relative">
+                              <span className="absolute top-2 left-2 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
+                                Page {pageImg.page}
+                              </span>
+                              <img 
+                                src={pageImg.dataUrl} 
+                                alt={`Page ${pageImg.page}`}
+                                className="w-full rounded-lg border border-slate-200 shadow-sm"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <textarea
+                          value={inputText}
+                          onChange={(e) => setInputText(e.target.value)}
+                          placeholder=""
+                          className={`w-full h-full bg-transparent resize-none p-4 focus:outline-none text-slate-700 leading-relaxed placeholder:text-slate-400 border border-dashed rounded-xl transition-colors ${isDragging ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-300 hover:border-indigo-300 focus:border-indigo-400'}`}
+                        />
+                        {!inputText && (
+                           <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center text-slate-400 gap-3">
+                             <UploadCloud size={32} className={`transition-colors ${isDragging ? 'text-indigo-500' : 'text-slate-300'}`} />
+                             <span className="text-sm font-medium">{isDragging ? 'Drop file here!' : 'Drag & Drop or Paste Text'}</span>
+                             <label className="pointer-events-auto cursor-pointer text-xs px-4 py-1.5 bg-white border border-slate-200 shadow-sm hover:border-indigo-200 hover:text-indigo-600 hover:bg-indigo-50 rounded-full text-slate-600 font-semibold transition-all">
+                               Select File
+                               <input type="file" className="hidden" accept=".pdf,.docx,.txt" onChange={handleFileSelect} />
+                             </label>
+                           </div>
+                        )}
+                      </>
                     )}
                   </div>
                 )}
@@ -713,11 +1086,11 @@ export default function HomePage() {
                 {/* Download Report Button */}
                 {scanResults && (
                   <button
-                    onClick={generatePDFReport}
+                    onClick={generateDetailedPDFReport}
                     className="w-full mt-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2"
                   >
                     <Download size={16} />
-                    Download Report (PDF)
+                    Download Detailed Report (PDF)
                   </button>
                 )}
               </div>
