@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { humanizeText } from '../../../../src/lib/humanizer.js';
+import { humanizeText } from '@/lib/humanizer.js';
 
 export async function POST(request) {
   try {

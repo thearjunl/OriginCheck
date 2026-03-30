@@ -136,27 +136,30 @@ function delay(ms) {
 }
 
 function pick(arr) {
-  if (!arr || arr.length === 0) return '';
+  if (!arr || !Array.isArray(arr) || arr.length === 0) return '';
   const item = arr[Math.floor(Math.random() * arr.length)];
-  return item || '';
+  if (item === undefined || item === null) return '';
+  return String(item);
 }
 
 // ─── Step 1: Replace AI sentence openers ─────────────────────────────────────
 function replaceAIOpeners(text) {
-  const sentences = text.split(/(?<=[.!?])\s+/);
+  if (!text) return '';
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s && s.trim());
   return sentences.map(sentence => {
     for (const { pattern, replacements } of AI_OPENERS) {
       if (pattern.test(sentence)) {
         const replacement = pick(replacements);
-        return sentence.replace(pattern, replacement + ' ');
+        return sentence.replace(pattern, (replacement || '') + ' ');
       }
     }
     return sentence;
-  }).join(' ');
+  }).filter(s => s !== undefined && s !== null && s !== 'undefined').join(' ');
 }
 
 // ─── Step 2: Synonym replacement ─────────────────────────────────────────────
 function replaceSynonyms(text, strengthMultiplier = 1) {
+  if (!text) return '';
   const keys = Object.keys(SYNONYMS).sort((a, b) => b.length - a.length);
   const pattern = new RegExp(`\\b(${keys.map(k => k.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|')})\\b`, 'gi');
 
@@ -165,8 +168,9 @@ function replaceSynonyms(text, strengthMultiplier = 1) {
     if (Math.random() < threshold) { 
       const lower = match.toLowerCase();
       const choices = SYNONYMS[lower];
-      if (!choices) return match;
+      if (!choices || !Array.isArray(choices) || choices.length === 0) return match;
       const replacement = pick(choices);
+      if (!replacement) return match;
       if (match[0] === match[0].toUpperCase() && match[0] !== match[0].toLowerCase()) {
         return replacement.charAt(0).toUpperCase() + replacement.slice(1);
       }
@@ -199,23 +203,29 @@ function manipulateSentences(text, strengthMultiplier = 1) {
 
 // ─── Step 4: Vary sentence flow ──────────────────────────────────────────────
 function varySentenceStructure(text, strengthMultiplier = 1) {
-  const sentences = text.split(/(?<=[.!?])\s+/);
+  if (!text) return '';
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s && s.trim());
   const result = [];
 
   for (let i = 0; i < sentences.length; i++) {
     let s = sentences[i];
+    if (!s || typeof s !== 'string') continue;
 
     if (i > 0 && i % 4 === 0 && Math.random() < Math.min(0.5 * strengthMultiplier, 0.8)) {
       const trans = pick(NATURAL_TRANSITIONS);
-      s = trans + ' ' + s.charAt(0).toLowerCase() + s.slice(1);
+      if (trans && s.length > 0) {
+        s = trans + ' ' + s.charAt(0).toLowerCase() + s.slice(1);
+      }
     }
 
     if (s.length > 90 && Math.random() < Math.min(0.4 * strengthMultiplier, 0.7)) {
-      const words = s.split(' ');
+      const words = s.split(' ').filter(w => w !== undefined && w !== 'undefined');
       const midPoint = Math.floor(words.length / 2);
       if (midPoint > 3) {
         const filler = pick(HUMAN_FILLERS);
-        words.splice(midPoint, 0, (', ' + filler + ','));
+        if (filler) {
+          words.splice(midPoint, 0, (', ' + filler + ','));
+        }
         s = words.join(' ');
       }
     }
@@ -224,7 +234,7 @@ function varySentenceStructure(text, strengthMultiplier = 1) {
   }
 
   for (let i = 0; i < result.length - 1; i++) {
-    if (result[i].length < 40 && result[i+1].length < 50 && Math.random() < Math.min(0.4 * strengthMultiplier, 0.7)) {
+    if (result[i] && result[i+1] && result[i].length < 40 && result[i+1].length < 50 && Math.random() < Math.min(0.4 * strengthMultiplier, 0.7)) {
       let first = result[i].trim();
       let second = result[i+1].trim();
       if (first.endsWith('.')) {
@@ -236,7 +246,7 @@ function varySentenceStructure(text, strengthMultiplier = 1) {
     }
   }
 
-  return result.join(' ');
+  return result.filter(s => s && s !== 'undefined').join(' ');
 }
 
 // ─── Step 5: Remove overly formal passive constructions ──────────────────────
@@ -257,10 +267,11 @@ function reducePassiveVoice(text) {
 
 // ─── Step 6: Add minor human-like imperfections ───────────────────────────────
 function addHumanTouch(text, strengthMultiplier = 1) {
+  if (!text) return '';
   const paragraphs = text.split(/\n+/);
 
   return paragraphs.map((para, idx) => {
-    if (!para.trim()) return para;
+    if (!para || !para.trim()) return para || '';
 
     if (idx > 0 && Math.random() < Math.min(0.6 * strengthMultiplier, 0.9)) {
       const starters = [
@@ -272,10 +283,13 @@ function addHumanTouch(text, strengthMultiplier = 1) {
         "Why does this matter?",
         "Consider this for a second.",
       ];
-      para = pick(starters) + ' ' + para;
+      const starter = pick(starters);
+      if (starter) {
+        para = starter + ' ' + para;
+      }
     }
     return para;
-  }).join('\n\n');
+  }).filter(p => p !== undefined && p !== null && p !== 'undefined').join('\n\n');
 }
 
 // ─── Step 6.5: Informalize (Contractions) ────────────────────────────────────
@@ -315,7 +329,15 @@ function applyContractions(text, strengthMultiplier = 1) {
 
 // ─── Step 7: Fix up spacing and punctuation artifacts ────────────────────────
 function cleanUp(text) {
-  let cleaned = text
+  if (!text) return '';
+  
+  // Strip all occurrences of the literal string 'undefined' FIRST
+  let cleaned = String(text)
+    .replace(/\bundefined\b/gi, '')
+    .replace(/undefined/gi, '')
+    .trim();
+  
+  cleaned = cleaned
     .replace(/\s{2,}/g, ' ')
     .replace(/ ,/g, ',')
     .replace(/ \./g, '.')
@@ -324,12 +346,12 @@ function cleanUp(text) {
     .replace(/\. ([a-z])/g, (m, c) => '. ' + c.toUpperCase()) 
     .replace(/([.!?])\s*([a-z])/g, (m, p1, p2) => p1 + ' ' + p2.toUpperCase())
     .replace(/([.!?])\s*([A-Z])/g, '$1 $2')
-    .replace(/- ([a-z])/gi, '$1')
     .trim();
   
+  // Final safety pass: strip any remaining undefined artifacts
   cleaned = cleaned
-    .replace(/undefined/gi, '')
-    .replace(/-\s+/g, '')
+    .replace(/\bundefined\b/gi, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
   
   return cleaned;
@@ -337,7 +359,7 @@ function cleanUp(text) {
 
 // ─── Main export ──────────────────────────────────────────────────────────────
 export async function humanizeText(text, options = {}, onProgress) {
-  if (!text || !text.trim()) return '';
+  if (!text || !text.trim()) return { originalWordCount: 0, finalWordCount: 0, humanizedText: '' };
 
   let strengthMultiplier = 1;
   if (options.strength === 'Low') strengthMultiplier = 0.5;
@@ -346,7 +368,7 @@ export async function humanizeText(text, options = {}, onProgress) {
   onProgress?.({ progress: 10, message: 'Analyzing text structure...' });
   await delay(600 + Math.random() * 400);
 
-  let processed = text.replace(/-\s+/g, '');
+  let processed = String(text);
 
   onProgress?.({ progress: 25, message: 'Replacing AI vocabulary...' });
   processed = replaceSynonyms(processed, strengthMultiplier);
@@ -383,9 +405,12 @@ export async function humanizeText(text, options = {}, onProgress) {
   onProgress?.({ progress: 100, message: 'Done!' });
   await delay(200);
 
+  // Final safety: ensure no 'undefined' in the output
+  const safeOutput = String(processed || '').replace(/\bundefined\b/gi, '').replace(/\s{2,}/g, ' ').trim();
+  
   return {
     originalWordCount: text.split(/\s+/).filter(w => w.length > 0).length,
-    finalWordCount: processed.split(/\s+/).filter(w => w.length > 0).length,
-    humanizedText: processed,
+    finalWordCount: safeOutput.split(/\s+/).filter(w => w.length > 0).length,
+    humanizedText: safeOutput,
   };
 }
