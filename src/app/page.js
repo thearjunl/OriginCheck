@@ -64,8 +64,9 @@ export default function HomePage() {
       const words = outputText.split(' ');
       const interval = setInterval(() => {
         if (i < words.length) {
-          setDisplayedText(prev => prev + (prev ? ' ' : '') + words[i]);
+          const currentWord = words[i]; // capture before increment to avoid closure bug
           i++;
+          setDisplayedText(prev => prev + (prev ? ' ' : '') + (currentWord || ''));
         } else {
           clearInterval(interval);
         }
