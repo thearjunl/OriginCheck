@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Copy, Download, ShieldAlert, FileSearch, Zap, CheckCircle2, AlertTriangle, ChevronRight, UploadCloud } from 'lucide-react';
+import { FileText, Copy, Download, ShieldAlert, FileSearch, Zap, CheckCircle2, AlertTriangle, ChevronRight, UploadCloud, ImageIcon } from 'lucide-react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
 import { Doughnut } from 'react-chartjs-2';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,7 @@ export default function HomePage() {
   const [highlightedText, setHighlightedText] = useState(null); // Used to show highlights in viewer
   const [isDragging, setIsDragging] = useState(false);
   const [isParsing, setIsParsing] = useState(false);
+  const [detectedImages, setDetectedImages] = useState(null); // { count, pages }
 
   // UI
   const textInputRef = useRef(null);
@@ -184,12 +185,40 @@ export default function HomePage() {
       });
       const pdf = await loadingTask.promise;
       let fullText = '';
+      let imageCount = 0;
+      const imagePages = [];
+
       for (let i = 1; i <= pdf.numPages; i++) {
         const page = await pdf.getPage(i);
         const textContent = await page.getTextContent();
         const pageText = textContent.items.map(item => item.str).join(' ');
         fullText += pageText + '\n';
+
+        // Detect images using the operator list
+        try {
+          const ops = await page.getOperatorList();
+          let pageImageCount = 0;
+          for (let j = 0; j < ops.fnArray.length; j++) {
+            // OPS.paintImageXObject = 85, OPS.paintJpegXObject = 82, OPS.paintImageMaskXObject = 83
+            if (ops.fnArray[j] === 85 || ops.fnArray[j] === 82 || ops.fnArray[j] === 83) {
+              pageImageCount++;
+            }
+          }
+          if (pageImageCount > 0) {
+            imageCount += pageImageCount;
+            imagePages.push({ page: i, count: pageImageCount });
+          }
+        } catch (imgErr) {
+          console.warn(`Image detection failed on page ${i}:`, imgErr);
+        }
       }
+
+      if (imageCount > 0) {
+        setDetectedImages({ count: imageCount, pages: imagePages });
+      } else {
+        setDetectedImages(null);
+      }
+
       if (!fullText.trim()) {
         throw new Error('No text content found in PDF');
       }
@@ -260,6 +289,155 @@ export default function HomePage() {
     if (e.target.files && e.target.files.length > 0) {
       handleFileUpload(e.target.files[0]);
     }
+  };
+
+  // Generate PDF Report using jsPDF
+  const generatePDFReport = async () => {
+    if (!scanResults) return;
+    
+    const { jsPDF } = await import('jspdf');
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    const contentWidth = pageWidth - margin * 2;
+    let y = 20;
+
+    const addPageIfNeeded = (neededSpace = 30) => {
+      if (y + neededSpace > doc.internal.pageSize.getHeight() - 20) {
+        doc.addPage();
+        y = 20;
+      }
+    };
+
+    // Header
+    doc.setFillColor(79, 70, 229); // Indigo
+    doc.rect(0, 0, pageWidth, 40, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('OriginCheck', margin, 18);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Integrity Scan Report', margin, 28);
+    doc.setFontSize(9);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 36);
+
+    y = 55;
+    doc.setTextColor(30, 41, 59);
+
+    // Summary Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Scan Summary', margin, y);
+    y += 10;
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setDrawColor(226, 232, 240);
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(margin, y, contentWidth, 50, 3, 3, 'FD');
+
+    const col1 = margin + 8;
+    const col2 = margin + contentWidth / 3 + 4;
+    const col3 = margin + (contentWidth / 3) * 2 + 4;
+
+    y += 14;
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(9);
+    doc.text('SIMILARITY SCORE', col1, y);
+    doc.text('AI PROBABILITY', col2, y);
+    doc.text('WORD COUNT', col3, y);
+    y += 10;
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(239, 68, 68);
+    doc.text(`${scanResults.similarityScore}%`, col1, y);
+    doc.setTextColor(168, 85, 247);
+    doc.text(`${scanResults.aiProbability}%`, col2, y);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`${scanResults.wordCount}`, col3, y);
+    y += 12;
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text(`Source: ${scanResults.sources?.plagiarismSearch || 'N/A'}`, col1, y);
+    doc.text(`Source: ${scanResults.sources?.aiDetection || 'N/A'}`, col2, y);
+
+    y += 20;
+
+    // Image Detection Section
+    if (detectedImages && detectedImages.count > 0) {
+      addPageIfNeeded(40);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('Image Detection', margin, y);
+      y += 8;
+
+      doc.setFillColor(254, 243, 199);
+      doc.setDrawColor(253, 224, 71);
+      doc.roundedRect(margin, y, contentWidth, 22, 3, 3, 'FD');
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(146, 64, 14);
+      doc.text(`${detectedImages.count} image(s) detected across ${detectedImages.pages.length} page(s)`, margin + 8, y + 9);
+      doc.setFontSize(8);
+      const pageList = detectedImages.pages.map(p => `Page ${p.page} (${p.count})`).join(', ');
+      doc.text(`Pages: ${pageList}`, margin + 8, y + 17);
+      y += 32;
+    }
+
+    // Matched Sources
+    if (scanResults.matches && scanResults.matches.length > 0) {
+      addPageIfNeeded(30);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 41, 59);
+      doc.text('Matched Sources', margin, y);
+      y += 10;
+
+      scanResults.matches.forEach((match, idx) => {
+        addPageIfNeeded(45);
+        
+        const isPlagiarism = match.type === 'plagiarism';
+        doc.setFillColor(isPlagiarism ? 254 : 250, isPlagiarism ? 242 : 245, isPlagiarism ? 242 : 255);
+        doc.setDrawColor(isPlagiarism ? 252 : 233, isPlagiarism ? 165 : 213, isPlagiarism ? 165 : 255);
+        doc.roundedRect(margin, y, contentWidth, 35, 3, 3, 'FD');
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(isPlagiarism ? 185 : 126, isPlagiarism ? 28 : 34, isPlagiarism ? 28 : 206);
+        doc.text(`${isPlagiarism ? 'INTERNET SOURCE' : 'AI GENERATION'}  |  ${match.matchPercentage}% match`, margin + 6, y + 8);
+
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        const snippetLines = doc.splitTextToSize(`"${match.text}"`, contentWidth - 16);
+        doc.text(snippetLines.slice(0, 2), margin + 6, y + 16);
+
+        doc.setTextColor(79, 70, 229);
+        doc.setFontSize(7);
+        const sourceText = String(match.source || '').substring(0, 80);
+        doc.text(sourceText, margin + 6, y + 30);
+
+        y += 40;
+      });
+    } else {
+      addPageIfNeeded(20);
+      doc.setFontSize(11);
+      doc.setTextColor(100, 116, 139);
+      doc.text('No matched sources found.', margin, y);
+      y += 15;
+    }
+
+    // Footer on last page
+    const footerY = doc.internal.pageSize.getHeight() - 15;
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Generated by OriginCheck — Integrity Scanner', pageWidth / 2, footerY, { align: 'center' });
+
+    doc.save(`OriginCheck_Report_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
   return (
@@ -517,6 +695,29 @@ export default function HomePage() {
                       <span className="text-xl font-bold text-purple-600">{scanResults.aiProbability}%</span>
                     </div>
                   </div>
+                )}
+
+                {/* Image Detection Indicator */}
+                {detectedImages && detectedImages.count > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ImageIcon size={14} className="text-amber-600" />
+                      <span className="text-xs font-bold text-amber-800">Images Detected</span>
+                    </div>
+                    <span className="text-sm font-semibold text-amber-700">{detectedImages.count} image{detectedImages.count !== 1 ? 's' : ''}</span>
+                    <span className="text-xs text-amber-600 ml-1">across {detectedImages.pages.length} page{detectedImages.pages.length !== 1 ? 's' : ''}</span>
+                  </div>
+                )}
+
+                {/* Download Report Button */}
+                {scanResults && (
+                  <button
+                    onClick={generatePDFReport}
+                    className="w-full mt-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-2"
+                  >
+                    <Download size={16} />
+                    Download Report (PDF)
+                  </button>
                 )}
               </div>
 
